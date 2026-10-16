@@ -1,0 +1,360 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { DocumentData } from './lib/types';
+import { createBlankDocument, createSampleDocument, DOC_TYPE_META } from './lib/defaults';
+import { clearStoredData, loadDocument, saveDocument } from './lib/storage';
+import { buildFileName } from './lib/format';
+import { validate } from './lib/validation';
+import { Editor, type Edit } from './components/Editor';
+import { A4Preview, type Zoom } from './doc/A4Preview';
+import { ConfirmDialog, Toast, type ConfirmOptions, type ToastState } from './components/Dialogs';
+import { Icon } from './components/ui';
+
+type Tab = 'edit' | 'preview';
+
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5];
+
+export default function App() {
+  const initial = useMemo(() => loadDocument(), []);
+  const [data, setData] = useState<DocumentData>(() => initial?.data ?? createSampleDocument());
+  const [savedAt, setSavedAt] = useState<string | null>(initial?.savedAt ?? null);
+  /** 저장 데이터 삭제 직후에는 사용자가 다시 편집하기 전까지 저장하지 않는다 */
+  const [persist, setPersist] = useState(() => initial !== null);
+  const [tab, setTab] = useState<Tab>('edit');
+  const [zoom, setZoom] = useState<Zoom>('fit');
+  const [pageCount, setPageCount] = useState(1);
+  const [showErrors, setShowErrors] = useState(false);
+  const [focusErrorTick, setFocusErrorTick] = useState(0);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [confirmOpts, setConfirmOpts] = useState<ConfirmOptions | null>(null);
+  const confirmResolver = useRef<((ok: boolean) => void) | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewWidth, setPreviewWidth] = useState(800);
+  const busyRef = useRef(false);
+
+  const errors = useMemo(() => validate(data), [data]);
+  const fileName = buildFileName(data.documentType, data.client.name, data.documentDate);
+
+  const edit: Edit = useCallback((mutate) => {
+    setData((prev) => {
+      const next = structuredClone(prev);
+      mutate(next);
+      return next;
+    });
+    setPersist(true);
+  }, []);
+
+  // 자동 저장 (로컬 저장소)
+  useEffect(() => {
+    if (!persist) return;
+    const t = setTimeout(() => {
+      const at = saveDocument(data);
+      if (at) setSavedAt(at);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [data, persist]);
+
+  // 미리보기 영역 폭 추적 (맞춤 배율)
+  useEffect(() => {
+    const el = previewRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => el.clientWidth && setPreviewWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // 필수 입력 누락 시 첫 오류 항목으로 이동
+  useEffect(() => {
+    if (!focusErrorTick || !errors.length) return;
+    const el = document.getElementById(errors[0].fieldId);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusErrorTick]);
+
+  const notify = (t: Omit<ToastState, 'id'>) => setToast({ ...t, id: Date.now() });
+
+  const askConfirm = (opts: ConfirmOptions) =>
+    new Promise<boolean>((resolve) => {
+      confirmResolver.current = resolve;
+      setConfirmOpts(opts);
+    });
+  const closeConfirm = useCallback((ok: boolean) => {
+    setConfirmOpts(null);
+    confirmResolver.current?.(ok);
+    confirmResolver.current = null;
+  }, []);
+
+  const ensureValid = (): boolean => {
+    if (!errors.length) return true;
+    setShowErrors(true);
+    setTab('edit');
+    setFocusErrorTick((t) => t + 1);
+    notify({ kind: 'error', message: `필수 입력 항목 ${errors.length}건을 확인해 주세요.` });
+    return false;
+  };
+
+  const downloadPdf = async () => {
+    if (busyRef.current) return; // 중복 다운로드 방지
+    if (!ensureValid()) return;
+    busyRef.current = true;
+    setPdfBusy(true);
+    try {
+      const { generatePdfBlob } = await import('./doc/PdfDocument');
+      const blob = await generatePdfBlob(data, data.title[data.documentType] || DOC_TYPE_META[data.documentType].label);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      notify({ kind: 'success', message: `${fileName} 다운로드를 시작했습니다.` });
+    } catch (e) {
+      console.error(e);
+      notify({ kind: 'error', message: 'PDF 생성에 실패했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.', action: { label: '다시 시도', run: () => void downloadPdf() } });
+    } finally {
+      busyRef.current = false;
+      setPdfBusy(false);
+    }
+  };
+
+  const print = () => {
+    setMenuOpen(false);
+    if (!ensureValid()) return;
+    const prevTitle = document.title;
+    document.title = fileName.replace(/\.pdf$/, '');
+    const restore = () => {
+      document.title = prevTitle;
+      window.removeEventListener('afterprint', restore);
+    };
+    window.addEventListener('afterprint', restore);
+    window.print();
+  };
+
+  const newDocument = async () => {
+    setMenuOpen(false);
+    const ok = await askConfirm({
+      title: '새 문서 작성',
+      message: '작성 중인 내용을 지우고 빈 문서로 시작할까요?\n기본 문구와 기본 납품 항목은 유지됩니다.',
+      confirmLabel: '새 문서 시작',
+    });
+    if (!ok) return;
+    setData(createBlankDocument());
+    setPersist(true);
+    setShowErrors(false);
+    setTab('edit');
+  };
+
+  const loadDefaults = async () => {
+    setMenuOpen(false);
+    const ok = await askConfirm({
+      title: '기본값 불러오기',
+      message: '작성 중인 내용을 예시 데이터(샘플 문서)로 바꿀까요?',
+      confirmLabel: '불러오기',
+    });
+    if (!ok) return;
+    setData(createSampleDocument());
+    setPersist(true);
+    setShowErrors(false);
+  };
+
+  const resetAll = async () => {
+    setMenuOpen(false);
+    const ok = await askConfirm({
+      title: '입력 내용 초기화',
+      message: '입력한 내용과 이 브라우저에 저장된 데이터를 모두 삭제합니다.\n삭제한 데이터는 복구할 수 없습니다.',
+      confirmLabel: '초기화',
+      danger: true,
+    });
+    if (!ok) return;
+    clearStoredData();
+    setPersist(false);
+    setSavedAt(null);
+    setData(createSampleDocument());
+    setShowErrors(false);
+    notify({ kind: 'info', message: '입력 내용과 저장된 데이터를 삭제했습니다.' });
+  };
+
+  const scale = zoom === 'fit' ? null : zoom;
+  const zoomBy = (dir: 1 | -1) => {
+    const current = scale ?? Math.min(1, (previewWidth - 32) / 793.7);
+    const next = dir > 0 ? ZOOM_STEPS.find((z) => z > current + 0.001) : [...ZOOM_STEPS].reverse().find((z) => z < current - 0.001);
+    if (next) setZoom(next);
+  };
+  const zoomLabel = `${Math.round((scale ?? Math.min(1, Math.max(0.3, (previewWidth - 32) / 793.7))) * 100)}%`;
+
+  const saveLabel = savedAt
+    ? `자동 저장됨 ${new Date(savedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`
+    : '저장된 데이터 없음';
+
+  return (
+    <div className="min-h-screen lg:h-[100dvh] lg:flex lg:flex-col">
+      {/* 상단 작업 영역 */}
+      <header className="no-print sticky top-0 z-30 flex-none bg-bg-default/90 backdrop-blur border-b border-line">
+        <div className="flex items-center justify-between gap-3 h-12 px-4 lg:px-6">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-bg-primary flex-none" />
+            <h1 className="text-compact font-semibold text-fg-secondary whitespace-nowrap">납품 확인서</h1>
+            <span className="pill hidden sm:inline-flex">{DOC_TYPE_META[data.documentType].short}</span>
+            <span className="hidden md:inline text-caption text-fg-tertiary truncate" aria-live="polite">
+              · {saveLabel}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <div className="hidden md:flex items-center gap-1">
+              <button type="button" className="btn-ghost" onClick={newDocument}>
+                새 문서
+              </button>
+              <button type="button" className="btn-ghost" onClick={loadDefaults}>
+                기본값 불러오기
+              </button>
+              <button type="button" className="btn-ghost hover:text-danger" onClick={resetAll}>
+                초기화
+              </button>
+              <span className="w-px h-5 bg-line mx-1" aria-hidden />
+              <button type="button" className="btn-secondary" onClick={print}>
+                <Icon name="print" /> 인쇄
+              </button>
+            </div>
+            <button type="button" className="btn-primary" onClick={downloadPdf} disabled={pdfBusy} aria-busy={pdfBusy}>
+              {pdfBusy ? <Spinner /> : <Icon name="download" />}
+              {pdfBusy ? 'PDF 생성 중…' : 'PDF 다운로드'}
+            </button>
+            <div className="relative md:hidden">
+              <button
+                type="button"
+                className="btn-secondary w-8 px-0"
+                aria-label="더보기"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((o) => !o)}
+              >
+                <Icon name="more" />
+              </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0" onClick={() => setMenuOpen(false)} />
+                  <div role="menu" className="absolute right-0 top-10 w-48 bg-bg-surface border border-line rounded-md shadow-lg py-1">
+                    {[
+                      { label: '새 문서 작성', run: newDocument },
+                      { label: '기본값 불러오기', run: loadDefaults },
+                      { label: '인쇄하기', run: print },
+                      { label: '초기화 (저장 데이터 삭제)', run: resetAll, danger: true },
+                    ].map((m) => (
+                      <button
+                        key={m.label}
+                        role="menuitem"
+                        type="button"
+                        className={`block w-full text-left px-4 py-2.5 text-compact hover:bg-bg-subtle ${m.danger ? 'text-danger' : 'text-fg-primary'}`}
+                        onClick={m.run}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                    <p className="px-4 pt-2 pb-1.5 mt-1 border-t border-line text-caption text-fg-tertiary">{saveLabel}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 모바일/태블릿: 편집 ↔ 미리보기 탭 */}
+        <div role="tablist" aria-label="화면 전환" className="lg:hidden grid grid-cols-2 px-4 gap-1 pb-2">
+          {(
+            [
+              { id: 'edit', label: '편집' },
+              { id: 'preview', label: `미리보기 · ${pageCount}쪽` },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              type="button"
+              id={`tab-${t.id}`}
+              aria-selected={tab === t.id}
+              aria-controls={`panel-${t.id}`}
+              onClick={() => {
+                setTab(t.id);
+                window.scrollTo({ top: 0 });
+              }}
+              className={`h-9 rounded-sm text-compact font-semibold transition-colors ${
+                tab === t.id ? 'bg-bg-surface border border-line text-fg-primary shadow-sm' : 'text-fg-tertiary hover:bg-bg-subtle'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <main className="lg:flex-1 lg:min-h-0 lg:grid lg:grid-cols-[minmax(400px,44%)_1fr] xl:grid-cols-[minmax(440px,40%)_1fr]">
+        {/* 좌측: 편집 패널 */}
+        <div
+          id="panel-edit"
+          role="tabpanel"
+          aria-labelledby="tab-edit"
+          className={`no-print lg:block lg:overflow-y-auto lg:border-r lg:border-line ${tab === 'edit' ? 'block' : 'hidden'}`}
+        >
+          <div className="max-w-[760px] mx-auto px-4 py-5 lg:px-6 lg:py-6">
+            <Editor
+              data={data}
+              edit={edit}
+              errors={errors}
+              showErrors={showErrors}
+              onDismissSample={() => edit((d) => void (d.meta.isSample = false))}
+              onNewDocument={newDocument}
+            />
+          </div>
+        </div>
+
+        {/* 우측: A4 미리보기 */}
+        <div
+          id="panel-preview"
+          role="tabpanel"
+          aria-labelledby="tab-preview"
+          className={`print-root lg:flex lg:flex-col lg:min-h-0 bg-[#E9EEF4] ${tab === 'preview' ? 'flex flex-col' : 'hidden'}`}
+        >
+          <div className="no-print sticky top-[92px] lg:top-0 z-20 flex items-center justify-between gap-2 px-4 h-11 bg-[#E9EEF4]/95 backdrop-blur border-b border-line">
+            <p className="text-caption text-fg-secondary">
+              <span className="font-semibold text-fg-primary">A4 미리보기</span> · {pageCount}페이지
+            </p>
+            <div className="flex items-center gap-1" role="group" aria-label="확대 및 축소">
+              <button type="button" className="btn-secondary w-8 px-0" onClick={() => zoomBy(-1)} aria-label="축소">
+                −
+              </button>
+              <span className="w-12 text-center text-caption tabular-nums text-fg-secondary" aria-live="polite">
+                {zoomLabel}
+              </span>
+              <button type="button" className="btn-secondary w-8 px-0" onClick={() => zoomBy(1)} aria-label="확대">
+                +
+              </button>
+              <button
+                type="button"
+                className={`btn-secondary ${zoom === 'fit' ? 'text-bg-primary-hover border-line-primary' : ''}`}
+                onClick={() => setZoom('fit')}
+                aria-pressed={zoom === 'fit'}
+              >
+                맞춤
+              </button>
+            </div>
+          </div>
+          <div ref={previewRef} className="print-root lg:flex-1 lg:overflow-auto py-6 px-4">
+            <A4Preview data={data} zoom={zoom} viewportWidth={previewWidth} onPageCount={setPageCount} />
+          </div>
+        </div>
+      </main>
+
+      <ConfirmDialog options={confirmOpts} onClose={closeConfirm} />
+      <Toast toast={toast} onClose={() => setToast(null)} />
+    </div>
+  );
+}
+
+function Spinner() {
+  return <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden />;
+}
