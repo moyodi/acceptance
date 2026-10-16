@@ -23,6 +23,7 @@ const HtmlPrimitives: Primitives = {
       {children}
     </div>
   ),
+  Image: ({ src, style }) => <img src={src} alt="" style={{ display: 'block', ...style }} />,
 };
 
 /** 측정한 unit 높이를 페이지 높이에 맞춰 순서대로 채운다 (unit은 쪼개지 않음) */

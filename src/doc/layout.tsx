@@ -16,6 +16,7 @@ export type DocStyle = Record<string, string | number>;
 export interface Primitives {
   View: ComponentType<{ style?: DocStyle; children?: ReactNode }>;
   Text: ComponentType<{ style?: DocStyle; children?: ReactNode }>;
+  Image: ComponentType<{ src: string; style?: DocStyle }>;
 }
 
 /** A4 및 여백 (mm) */
@@ -122,15 +123,18 @@ export const S = {
   signFieldLast: { flexDirection: 'row', height: '24mm' },
   signLabel: { width: '24mm', ...pad('2.4mm', '3mm'), fontSize: '8.5pt', fontWeight: 600, color: C.muted, lineHeight: 1.6 },
   signValue: { flex: 1, ...pad('2.4mm', '3mm'), fontSize: '9.5pt', color: C.ink, lineHeight: 1.6 },
-  signStampArea: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingRight: '5mm' },
+  signStampArea: { flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingRight: '3mm' },
+  signStampBox: { position: 'relative', width: '20mm', height: '20mm', alignItems: 'center', justifyContent: 'center' },
   signStamp: { fontSize: '9.5pt', color: C.muted, lineHeight: 1.4 },
+  // 도장 이미지는 (인) 위에 겹쳐 찍힌 것처럼 배치
+  signStampImage: { position: 'absolute', top: '1mm', left: '1mm', width: '18mm', height: '18mm', objectFit: 'contain' },
 } satisfies Record<string, DocStyle>;
 
 const merge = (...styles: (DocStyle | false | undefined)[]): DocStyle => Object.assign({}, ...styles.filter(Boolean));
 
 /** unit 하나를 주어진 primitive(HTML 또는 PDF)로 렌더링 */
 export function renderUnit(u: Unit, P: Primitives): ReactNode {
-  const { View, Text } = P;
+  const { View, Text, Image } = P;
   const heading = u.heading ? (
     <View style={S.headingWrap}>
       <Text style={S.heading}>{`${u.heading.num}. ${u.heading.text}`}</Text>
@@ -222,7 +226,10 @@ export function renderUnit(u: Unit, P: Primitives): ReactNode {
                 <View style={S.signFieldLast}>
                   <Text style={S.signLabel}>서명 또는 날인</Text>
                   <View style={S.signStampArea}>
-                    <Text style={S.signStamp}>(인)</Text>
+                    <View style={S.signStampBox}>
+                      <Text style={S.signStamp}>(인)</Text>
+                      {p.stamp ? <Image src={p.stamp} style={S.signStampImage} /> : null}
+                    </View>
                   </View>
                 </View>
               </View>

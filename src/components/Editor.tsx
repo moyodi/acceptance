@@ -13,6 +13,7 @@ import { formatKDate } from '../lib/format';
 import type { ValidationError } from '../lib/validation';
 import { maintenancePeriodLabel } from '../doc/model';
 import { AutoTextarea, Card, Field, Icon, ResetTextButton, Toggle } from './ui';
+import { StampUpload } from './StampUpload';
 import { DeliverablesEditor } from './DeliverablesEditor';
 
 export type Edit = (mutate: (draft: DocumentData) => void) => void;
@@ -23,7 +24,8 @@ interface Props {
   errors: ValidationError[];
   showErrors: boolean;
   onDismissSample: () => void;
-  onNewDocument: () => void;
+  onStartBlank: () => void;
+  onError: (message: string) => void;
 }
 
 export const EDITOR_SECTIONS = [
@@ -37,7 +39,7 @@ export const EDITOR_SECTIONS = [
   { id: 'sec-signature', label: '서명 정보' },
 ];
 
-export function Editor({ data, edit, errors, showErrors, onDismissSample, onNewDocument }: Props) {
+export function Editor({ data, edit, errors, showErrors, onDismissSample, onStartBlank, onError }: Props) {
   const type = data.documentType;
   const err = (fieldId: string) => (showErrors ? errors.find((e) => e.fieldId === fieldId)?.message : undefined);
   const inputProps = (fieldId: string) => {
@@ -54,7 +56,7 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onNewD
             예시 데이터로 채워진 문서로, 실제 클라이언트 문서가 아닙니다. 내용을 프로젝트에 맞게 수정해 사용하세요.
           </p>
           <div className="flex gap-2 mt-2">
-            <button type="button" className="btn h-7 px-2.5 text-caption bg-white border border-warn-line text-warn hover:bg-amber-50" onClick={onNewDocument}>
+            <button type="button" className="btn h-7 px-2.5 text-caption bg-white border border-warn-line text-warn hover:bg-amber-50" onClick={onStartBlank}>
               빈 문서로 시작
             </button>
             <button type="button" className="btn h-7 px-2.5 text-caption text-warn hover:bg-amber-100" onClick={onDismissSample}>
@@ -328,7 +330,7 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onNewD
       </Card>
 
       {/* 08 서명 */}
-      <Card id="sec-signature" num="08" title="서명 및 날인" description="출력 후 수기 서명·날인을 기본으로 합니다. 상호·대표자는 프로젝트 정보에서 가져옵니다.">
+      <Card id="sec-signature" num="08" title="서명 및 날인" description="상호·대표자는 프로젝트 정보에서 가져옵니다. 도장 이미지를 첨부하거나, 출력 후 직접 서명·날인할 수 있습니다.">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field id="f-document-date" label="확인서 작성일" required className="sm:col-span-2" error={err('f-document-date')} hint={formatKDate(data.documentDate) || undefined}>
             <input {...inputProps('f-document-date')} type="date" className="input" value={data.documentDate} onChange={(e) => edit((d) => void (d.documentDate = e.target.value))} />
@@ -340,18 +342,36 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onNewD
             <input id="f-sign-provider" className="input" value={data.signatures.providerLabel} onChange={(e) => edit((d) => void (d.signatures.providerLabel = e.target.value))} />
           </Field>
         </div>
-        <dl className="mt-4 grid grid-cols-2 gap-2 text-compact">
-          {[
-            { role: data.signatures.clientLabel || '발주사', p: data.client },
-            { role: data.signatures.providerLabel || '제작사', p: data.provider },
-          ].map(({ role, p }) => (
-            <div key={role} className="rounded-md bg-bg-subtle border border-line px-3 py-2.5">
-              <dt className="text-caption font-semibold text-fg-tertiary">{role}</dt>
-              <dd className="mt-0.5 text-fg-primary truncate">{p.name || <span className="text-fg-tertiary">상호 미입력</span>}</dd>
-              <dd className="text-fg-secondary truncate">{p.representative ? `대표자 ${p.representative}` : <span className="text-fg-tertiary">대표자 미입력</span>}</dd>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {(
+            [
+              { key: 'clientStamp', role: data.signatures.clientLabel || '발주사', p: data.client },
+              { key: 'providerStamp', role: data.signatures.providerLabel || '제작사', p: data.provider },
+            ] as const
+          ).map(({ key, role, p }) => (
+            <div key={key} className="rounded-md bg-bg-subtle border border-line px-4 py-3">
+              <p className="text-caption font-semibold text-fg-tertiary">{role}</p>
+              <div className="mt-1 flex items-center gap-3">
+                <div className="flex-1 min-w-0 text-compact">
+                  <p className="text-fg-primary truncate">{p.name || <span className="text-fg-tertiary">상호 미입력</span>}</p>
+                  <p className="text-fg-secondary truncate">
+                    {p.representative ? `대표자 ${p.representative}` : <span className="text-fg-tertiary">대표자 미입력</span>}
+                  </p>
+                </div>
+                <StampUpload
+                  id={`f-${key}`}
+                  label={`${role} 도장 이미지`}
+                  value={data.signatures[key]}
+                  onChange={(v) => edit((d) => void (d.signatures[key] = v))}
+                  onError={onError}
+                />
+              </div>
             </div>
           ))}
-        </dl>
+        </div>
+        <p className="mt-2 text-caption text-fg-tertiary">
+          원형 칸을 눌러 도장·서명 이미지를 첨부하면 문서의 (인) 자리에 찍혀 표시됩니다. 배경이 투명한 PNG를 권장합니다.
+        </p>
       </Card>
 
       <p className="text-caption text-fg-tertiary text-center py-2">

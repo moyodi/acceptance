@@ -37,7 +37,7 @@ export type Unit =
   | (Base & {
       kind: 'signature';
       date: string;
-      parties: { role: string; name: string; representative: string }[];
+      parties: { role: string; name: string; representative: string; stamp: string }[];
     });
 
 export function maintenanceText(d: DocumentData): string {
@@ -160,11 +160,17 @@ export function buildUnits(d: DocumentData): Unit[] {
     kind: 'signature',
     date: formatKDate(d.documentDate),
     parties: [
-      { role: d.signatures.clientLabel.trim() || '발주사', name: d.client.name.trim(), representative: d.client.representative.trim() },
+      {
+        role: d.signatures.clientLabel.trim() || '발주사',
+        name: d.client.name.trim(),
+        representative: d.client.representative.trim(),
+        stamp: d.signatures.clientStamp,
+      },
       {
         role: d.signatures.providerLabel.trim() || '제작사',
         name: d.provider.name.trim(),
         representative: d.provider.representative.trim(),
+        stamp: d.signatures.providerStamp,
       },
     ],
   });

@@ -109,7 +109,7 @@ export function createBlankDocument(): DocumentData {
     },
     notes: { enabled: false, items: [], memo: '' },
     confirmation: { text: { ...DEFAULT_CONFIRMATION } },
-    signatures: { clientLabel: '발주사', providerLabel: '제작사' },
+    signatures: { clientLabel: '발주사', providerLabel: '제작사', clientStamp: '', providerStamp: '' },
     documentDate: todayISO(),
     meta: { isSample: false },
   };

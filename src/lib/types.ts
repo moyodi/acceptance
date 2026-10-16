@@ -73,6 +73,9 @@ export interface DocumentData {
   signatures: {
     clientLabel: string;
     providerLabel: string;
+    /** 도장(서명) 이미지 data URL — 비어 있으면 출력 후 수기 날인 */
+    clientStamp: string;
+    providerStamp: string;
   };
   /** 문서 작성일 (YYYY-MM-DD) */
   documentDate: string;

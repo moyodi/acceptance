@@ -1,15 +1,19 @@
 import type { DocumentData } from './types';
-import { createBlankDocument } from './defaults';
+import { createBlankDocument, createSampleDocument, uid } from './defaults';
 
 /**
- * 브라우저 로컬 저장소. 서버로 전송하지 않는다.
- * 추후 여러 문서 저장으로 확장할 수 있도록 네임스페이스/버전을 키에 포함한다.
+ * 브라우저 로컬 저장소 — 여러 납품 확인서를 보관한다. 서버로 전송하지 않는다.
+ * 키 구조: `myd-acceptance:v1:docs` → { docs: StoredDoc[] }
  */
 const NS = 'myd-acceptance';
-const CURRENT_KEY = `${NS}:v1:current`;
+const DOCS_KEY = `${NS}:v1:docs`;
+/** 목록 기능 이전(단일 문서) 저장 키 — 최초 로드 시 목록으로 옮긴다 */
+const LEGACY_CURRENT_KEY = `${NS}:v1:current`;
 
-export interface StoredEnvelope {
-  savedAt: string;
+export interface StoredDoc {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
   data: DocumentData;
 }
 
@@ -44,34 +48,99 @@ function normalize(raw: unknown): DocumentData | null {
   } as DocumentData;
 }
 
-export function loadDocument(): StoredEnvelope | null {
+function newEntry(data: DocumentData, at = new Date().toISOString()): StoredDoc {
+  return { id: uid(), createdAt: at, updatedAt: at, data };
+}
+
+function writeAll(docs: StoredDoc[]): boolean {
   try {
-    const s = localStorage.getItem(CURRENT_KEY);
-    if (!s) return null;
-    const env = JSON.parse(s) as StoredEnvelope;
-    const data = normalize(env.data);
-    return data ? { savedAt: env.savedAt, data } : null;
+    localStorage.setItem(DOCS_KEY, JSON.stringify({ docs }));
+    return true;
   } catch {
-    return null;
+    return false;
   }
 }
 
-export function saveDocument(data: DocumentData): string | null {
+/** 저장소가 비어 있으면(첫 방문) 예시 문서 하나를 만든다. 이전 단일 문서 저장본은 목록으로 옮긴다. */
+function readAll(): StoredDoc[] {
   try {
-    const savedAt = new Date().toISOString();
-    localStorage.setItem(CURRENT_KEY, JSON.stringify({ savedAt, data } satisfies StoredEnvelope));
-    return savedAt;
+    const raw = localStorage.getItem(DOCS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { docs?: unknown[] };
+      return (parsed.docs ?? []).flatMap((d) => {
+        const e = d as StoredDoc;
+        const data = normalize(e?.data);
+        return data && e.id ? [{ id: e.id, createdAt: e.createdAt, updatedAt: e.updatedAt, data }] : [];
+      });
+    }
+    let seed: StoredDoc;
+    const legacy = localStorage.getItem(LEGACY_CURRENT_KEY);
+    const legacyEnv = legacy ? (JSON.parse(legacy) as { savedAt?: string; data?: unknown }) : null;
+    const legacyData = normalize(legacyEnv?.data);
+    if (legacyData) {
+      seed = newEntry(legacyData, legacyEnv?.savedAt);
+    } else {
+      seed = newEntry(createSampleDocument());
+    }
+    writeAll([seed]);
+    localStorage.removeItem(LEGACY_CURRENT_KEY);
+    return [seed];
   } catch {
-    return null;
+    return [];
   }
 }
 
-/** 이 도구가 저장한 모든 데이터를 삭제 */
+/** 최근 수정순 목록 */
+export function listDocs(): StoredDoc[] {
+  return readAll().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export function getDoc(id: string): StoredDoc | null {
+  return readAll().find((d) => d.id === id) ?? null;
+}
+
+export function createDoc(data: DocumentData): StoredDoc | null {
+  const entry = newEntry(data);
+  return writeAll([...readAll(), entry]) ? entry : null;
+}
+
+/** 저장 성공 시 수정 시각을 돌려준다 */
+export function saveDoc(id: string, data: DocumentData): string | null {
+  const docs = readAll();
+  const at = new Date().toISOString();
+  const i = docs.findIndex((d) => d.id === id);
+  if (i < 0) return null;
+  docs[i] = { ...docs[i], updatedAt: at, data };
+  return writeAll(docs) ? at : null;
+}
+
+export function duplicateDoc(id: string): StoredDoc | null {
+  const src = getDoc(id);
+  if (!src) return null;
+  const data = structuredClone(src.data);
+  data.project.name = data.project.name ? `${data.project.name} (사본)` : '';
+  return createDoc(data);
+}
+
+export function deleteDoc(id: string): boolean {
+  return writeAll(readAll().filter((d) => d.id !== id));
+}
+
+/** 삭제 실행 취소용 — 삭제한 문서를 그대로 되돌린다 */
+export function restoreDoc(entry: StoredDoc): boolean {
+  const docs = readAll();
+  if (docs.some((d) => d.id === entry.id)) return true;
+  return writeAll([...docs, entry]);
+}
+
+/** 이 도구가 저장한 모든 데이터를 삭제 (공용 컴퓨터용) */
 export function clearStoredData(): void {
   try {
     Object.keys(localStorage)
       .filter((k) => k.startsWith(`${NS}:`))
       .forEach((k) => localStorage.removeItem(k));
+    // 삭제 직후 새로고침 시 예시 문서가 다시 만들어지지 않도록 빈 목록을 남긴다
+    writeAll([]);
   } catch {
     /* 저장소 접근 불가 시 무시 */
   }

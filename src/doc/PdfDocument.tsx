@@ -1,4 +1,4 @@
-import { Document, Font, Page, Text, View, pdf } from '@react-pdf/renderer';
+import { Document, Font, Image, Page, Text, View, pdf } from '@react-pdf/renderer';
 import type { DocumentData } from '../lib/types';
 import { buildUnits } from './model';
 import { FONT_FAMILY, PAGE, S, renderUnit, type DocStyle, type Primitives } from './layout';
@@ -30,6 +30,7 @@ function registerFonts() {
 const PdfPrimitives: Primitives = {
   View: ({ style, children }) => <View style={style as any}>{children}</View>,
   Text: ({ style, children }) => <Text style={style as any}>{children}</Text>,
+  Image: ({ src, style }) => <Image src={src} style={style as any} />,
 };
 
 const pageStyle: DocStyle = {
