@@ -34,7 +34,7 @@ function normalize(raw: unknown): DocumentData | null {
       ...base.deliverables,
       ...r.deliverables,
       items: Array.isArray(r.deliverables?.items)
-        ? r.deliverables!.items.map((i) => ({ ...i, group: i.group ?? '', detail: i.detail ?? '' }))
+        ? r.deliverables!.items.map((i) => ({ ...i, group: i.group ?? '', detail: fixDetail(i.label, i.detail ?? '') }))
         : base.deliverables.items,
     },
     inspection: { text: { ...base.inspection.text, ...r.inspection?.text } },
@@ -54,6 +54,14 @@ function normalize(raw: unknown): DocumentData | null {
 function migrateMaintenance(m: DocumentData['maintenance'], storedUnit: unknown): DocumentData['maintenance'] {
   if (storedUnit === 'day' || storedUnit === 'month') return m;
   return { ...m, unit: 'day', text: m.text.replace(/\{기간\}일/g, '{기간}') };
+}
+
+/** 월드크레인 세트 초기 버전의 잘못된 세부 내용 정정 — 회원 직접 탈퇴 기능은 구현되지 않음 */
+function fixDetail(label: string, detail: string): string {
+  if (label === '회원정보 관리' && detail === '아이디·비밀번호 찾기, 회원정보 조회·수정, 비밀번호 변경, 회원 탈퇴') {
+    return '아이디·비밀번호 찾기, 회원정보 조회·수정, 비밀번호 변경';
+  }
+  return detail;
 }
 
 function newEntry(data: DocumentData, at = new Date().toISOString()): StoredDoc {
