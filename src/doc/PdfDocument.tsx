@@ -16,9 +16,9 @@ function registerFonts() {
   Font.register({
     family: FONT_FAMILY,
     fonts: [
-      { src: fontUrl('Pretendard-Regular.woff'), fontWeight: 400 },
-      { src: fontUrl('Pretendard-SemiBold.woff'), fontWeight: 600 },
-      { src: fontUrl('Pretendard-Bold.woff'), fontWeight: 700 },
+      { src: fontUrl('pdf/Pretendard-Regular.ttf'), fontWeight: 400 },
+      { src: fontUrl('pdf/Pretendard-SemiBold.ttf'), fontWeight: 600 },
+      { src: fontUrl('pdf/Pretendard-Bold.ttf'), fontWeight: 700 },
     ],
   });
   // 한글은 어절(띄어쓰기) 단위로 줄바꿈 — 미리보기의 word-break: keep-all 과 동일

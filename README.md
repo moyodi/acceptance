@@ -34,7 +34,7 @@ src/
     A4Preview.tsx   HTML 미리보기 + unit 높이 측정 기반 페이지 분할
     PdfDocument.tsx PDF 생성 (필요 시 지연 로딩)
   components/   편집 패널, 납품 항목 편집기, 공통 UI, 대화상자
-public/fonts/   Pretendard (웹 UI와 PDF 임베딩에 공용)
+public/fonts/   Pretendard — 웹 UI용 WOFF, PDF 임베딩용 TTF(public/fonts/pdf)
 ```
 
 미리보기와 PDF는 같은 unit 목록과 같은 스타일 정의를 사용하므로 줄바꿈과 페이지 분할이 일치합니다.
@@ -49,3 +49,10 @@ npm run build      # 타입 검사 + 프로덕션 빌드 (dist/)
 ```
 
 배포: Vercel (Vite 프리셋, 출력 디렉터리 `dist`).
+
+### PDF 폰트
+
+PDF 엔진(@react-pdf/renderer, fontkit)은 WOFF 폰트를 글자를 그릴 때마다 반복해서 압축 해제해
+한글 문서 한 장 생성에 수십 초가 걸린다. 그래서 PDF에는 WOFF를 풀어 둔 TTF(`public/fonts/pdf/`)를 쓴다.
+웹 UI는 기존 WOFF를 그대로 쓴다.
+
