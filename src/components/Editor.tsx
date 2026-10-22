@@ -5,6 +5,7 @@ import {
   DEFAULT_INSPECTION,
   DEFAULT_MAINTENANCE_BASIS,
   DEFAULT_MAINTENANCE_TEXT,
+  DEFAULT_NOTES_TITLE,
   DEFAULT_TITLE,
   DOC_TYPE_META,
   uid,
@@ -34,9 +35,10 @@ export const EDITOR_SECTIONS = [
   { id: 'sec-type', label: '문서 유형' },
   { id: 'sec-project', label: '프로젝트 정보' },
   { id: 'sec-deliverables', label: '납품 항목' },
+  { id: 'sec-notes', label: '납품 범위 협의' },
   { id: 'sec-inspection', label: '검수 확인' },
   { id: 'sec-maintenance', label: '유지관리' },
-  { id: 'sec-notes', label: '특이사항' },
+  { id: 'sec-extra', label: '추가 특이사항' },
   { id: 'sec-confirmation', label: '최종 확인' },
   { id: 'sec-signature', label: '서명 정보' },
 ];
@@ -183,10 +185,58 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
         />
       </Card>
 
-      {/* 04 검수 확인 */}
+      {/* 04 납품 범위 협의 및 미완료 사항 */}
+      <Card id="sec-notes" num="04" title={data.notes.title.trim() || DEFAULT_NOTES_TITLE}>
+        <Toggle
+          label="섹션 표시"
+          description="제작 및 납품 내역 바로 뒤에 표시됩니다. 협의로 바뀐 범위, 추가 제공 기능, 남은 작업이 있을 때 사용합니다."
+          checked={data.notes.enabled}
+          onChange={(v) => edit((d) => void (d.notes.enabled = v))}
+        />
+        {data.notes.enabled && (
+          <div className="mt-4 flex flex-col gap-3">
+            <Field id="f-notes-title" label="섹션 제목" className="mb-1">
+              <input
+                id="f-notes-title"
+                className="input"
+                value={data.notes.title}
+                placeholder={DEFAULT_NOTES_TITLE}
+                onChange={(e) => edit((d) => void (d.notes.title = e.target.value))}
+              />
+            </Field>
+            {data.notes.items.map((n, i) => (
+              <NoteRow
+                key={n.id}
+                index={i}
+                item={n}
+                onPatch={(p) => edit((d) => void (d.notes.items = d.notes.items.map((x) => (x.id === n.id ? { ...x, ...p } : x))))}
+                onRemove={() => edit((d) => void (d.notes.items = d.notes.items.filter((x) => x.id !== n.id)))}
+              />
+            ))}
+            <button
+              type="button"
+              className="btn-secondary h-control w-full border-dashed"
+              onClick={() => edit((d) => void d.notes.items.push({ id: uid(), task: '', dueDate: '', remark: '' }))}
+            >
+              <Icon name="plus" /> 미완료 작업 추가
+            </button>
+            <Field id="f-notes-memo" label="추가 협의 내용" className="mt-1">
+              <AutoTextarea
+                id="f-notes-memo"
+                rows={2}
+                value={data.notes.memo}
+                placeholder="예: 정식 도메인 연결은 발주사 도메인 이전 완료 후 진행합니다."
+                onChange={(e) => edit((d) => void (d.notes.memo = e.target.value))}
+              />
+            </Field>
+          </div>
+        )}
+      </Card>
+
+      {/* 05 검수 확인 */}
       <Card
         id="sec-inspection"
-        num="04"
+        num="05"
         title={DOC_TYPE_META[type].inspectionHeading}
         description={`${DOC_TYPE_META[type].label} 유형의 검수 문구입니다. 빈 줄로 문단을 구분합니다.`}
       >
@@ -202,8 +252,8 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
         </div>
       </Card>
 
-      {/* 05 유지관리 */}
-      <Card id="sec-maintenance" num="05" title="유지관리 및 운영">
+      {/* 06 유지관리 */}
+      <Card id="sec-maintenance" num="06" title="유지관리 및 운영">
         <Toggle
           label="유지관리 조항 사용"
           description="사용하지 않으면 문서에서 해당 섹션과 유지관리 기간 항목이 숨겨집니다."
@@ -308,49 +358,41 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
         )}
       </Card>
 
-      {/* 06 특이사항 */}
-      <Card id="sec-notes" num="06" title="미완료 사항 및 특이사항">
+      {/* 07 추가 특이사항 */}
+      <Card id="sec-extra" num="07" title="추가 특이사항" description="그 밖에 기록할 내용이 있을 때 사용합니다. 문서에서 최종 확인 바로 앞에 표시됩니다.">
         <Toggle
           label="섹션 표시"
-          description="남은 작업이나 추가 협의 내용이 있을 때 사용합니다."
-          checked={data.notes.enabled}
-          onChange={(v) => edit((d) => void (d.notes.enabled = v))}
+          description="사용하지 않으면 문서에 나타나지 않습니다."
+          checked={data.extra.enabled}
+          onChange={(v) => edit((d) => void (d.extra.enabled = v))}
         />
-        {data.notes.enabled && (
-          <div className="mt-4 flex flex-col gap-3">
-            {data.notes.items.map((n, i) => (
-              <NoteRow
-                key={n.id}
-                index={i}
-                item={n}
-                onPatch={(p) => edit((d) => void (d.notes.items = d.notes.items.map((x) => (x.id === n.id ? { ...x, ...p } : x))))}
-                onRemove={() => edit((d) => void (d.notes.items = d.notes.items.filter((x) => x.id !== n.id)))}
+        {data.extra.enabled && (
+          <div className="mt-4 flex flex-col gap-4">
+            <Field id="f-extra-title" label="섹션 제목" hint="비워 두면 「기타 특이사항」으로 표시됩니다.">
+              <input
+                id="f-extra-title"
+                className="input"
+                value={data.extra.title}
+                placeholder="기타 특이사항"
+                onChange={(e) => edit((d) => void (d.extra.title = e.target.value))}
               />
-            ))}
-            <button
-              type="button"
-              className="btn-secondary h-control w-full border-dashed"
-              onClick={() => edit((d) => void d.notes.items.push({ id: uid(), task: '', dueDate: '', remark: '' }))}
-            >
-              <Icon name="plus" /> 미완료 작업 추가
-            </button>
-            <Field id="f-notes-memo" label="추가 협의 내용" className="mt-1">
+            </Field>
+            <Field id="f-extra-text" label="내용" hint="빈 줄로 문단을 구분합니다.">
               <AutoTextarea
-                id="f-notes-memo"
-                rows={2}
-                value={data.notes.memo}
-                placeholder="예: 정식 도메인 연결은 발주사 도메인 이전 완료 후 진행합니다."
-                onChange={(e) => edit((d) => void (d.notes.memo = e.target.value))}
+                id="f-extra-text"
+                rows={3}
+                value={data.extra.text}
+                onChange={(e) => edit((d) => void (d.extra.text = e.target.value))}
               />
             </Field>
           </div>
         )}
       </Card>
 
-      {/* 07 최종 확인 */}
+      {/* 08 최종 확인 */}
       <Card
         id="sec-confirmation"
-        num="07"
+        num="08"
         title={DOC_TYPE_META[type].confirmationHeading}
         description={type === 'review' ? '개발 완료 및 검수 확인서는 최종 인수 대신 개발 결과물 확인 문구를 사용합니다.' : undefined}
       >
@@ -366,8 +408,8 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
         </div>
       </Card>
 
-      {/* 08 서명 */}
-      <Card id="sec-signature" num="08" title="서명 및 날인" description="상호·대표자는 프로젝트 정보와 연동되어 어느 쪽에서 수정해도 함께 바뀝니다. 도장 이미지를 첨부하거나, 출력 후 직접 서명·날인할 수 있습니다.">
+      {/* 09 서명 */}
+      <Card id="sec-signature" num="09" title="서명 및 날인" description="상호·대표자는 프로젝트 정보와 연동되어 어느 쪽에서 수정해도 함께 바뀝니다. 도장 이미지를 첨부하거나, 출력 후 직접 서명·날인할 수 있습니다.">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field id="f-document-date" label="확인서 작성일" required className="sm:col-span-2" error={err('f-document-date')} hint={formatKDate(data.documentDate) || undefined}>
             <input {...inputProps('f-document-date')} type="date" className="input" value={data.documentDate} onChange={(e) => edit((d) => void (d.documentDate = e.target.value))} />

@@ -72,9 +72,17 @@ export interface DocumentData {
   };
   notes: {
     enabled: boolean;
+    /** 섹션 제목 */
+    title: string;
     items: NoteItem[];
     /** 추가 협의 내용 */
     memo: string;
+  };
+  /** 추가 특이사항 — 제목·내용을 직접 쓰는 선택 섹션 (최종 확인 앞에 표시) */
+  extra: {
+    enabled: boolean;
+    title: string;
+    text: string;
   };
   confirmation: {
     text: PerType<string>;

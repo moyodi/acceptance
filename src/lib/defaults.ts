@@ -26,6 +26,10 @@ export const DEFAULT_TITLE: Record<DocType, string> = {
   review: '홈페이지 개발 완료 및 검수 확인서',
 };
 
+/** 제작 및 납품 내역 바로 뒤 — 범위 변경·추가 제공·미완료 작업 등 납품 내역의 후속 내용 */
+export const DEFAULT_NOTES_TITLE = '납품 범위 협의 및 미완료 사항';
+export const DEFAULT_EXTRA_TITLE = '기타 특이사항';
+
 export const DEFAULT_DELIVERABLES_INTRO =
   '본 홈페이지는 발주사와 제작사 간 체결한 홈페이지 제작 계약 및 상호 협의된 요구사항을 바탕으로 제작되었으며, 아래 주요 기능을 포함합니다.';
 
@@ -110,7 +114,8 @@ export function createBlankDocument(): DocumentData {
       startDate: '',
       text: DEFAULT_MAINTENANCE_TEXT,
     },
-    notes: { enabled: false, items: [], memo: '' },
+    notes: { enabled: false, title: DEFAULT_NOTES_TITLE, items: [], memo: '' },
+    extra: { enabled: false, title: DEFAULT_EXTRA_TITLE, text: '' },
     confirmation: { text: { ...DEFAULT_CONFIRMATION } },
     signatures: { clientLabel: '발주사', providerLabel: '제작사', clientStamp: '', providerStamp: '' },
     documentDate: todayISO(),

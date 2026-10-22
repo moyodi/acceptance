@@ -1,5 +1,5 @@
 import type { DocumentData } from '../lib/types';
-import { DOC_TYPE_META } from '../lib/defaults';
+import { DEFAULT_NOTES_TITLE, DOC_TYPE_META } from '../lib/defaults';
 import { formatKDate, formatPeriod, periodEndISO, toParagraphs } from '../lib/format';
 
 /**
@@ -162,20 +162,6 @@ export function buildUnits(d: DocumentData): Unit[] {
   }
   section('제작 및 납품 내역', deliv);
 
-  // 납품 및 검수 확인
-  section(
-    meta.inspectionHeading,
-    toParagraphs(d.inspection.text[type]).map((text, i) => ({ key: `insp-${i}`, kind: 'para' as const, text })),
-  );
-
-  // 유지관리 및 운영
-  if (d.maintenance.enabled) {
-    section(
-      '유지관리 및 운영',
-      toParagraphs(maintenanceText(d, true)).map((p, i) => ({ key: `maint-${i}`, kind: 'para' as const, ...toSegments(p) })),
-    );
-  }
-
   // 미완료 사항 및 특이사항
   if (d.notes.enabled) {
     const noteItems = d.notes.items.filter((n) => n.task.trim() || n.remark.trim() || n.dueDate);
@@ -195,7 +181,28 @@ export function buildUnits(d: DocumentData): Unit[] {
       );
     }
     if (!body.length) body.push({ key: 'note-none', kind: 'empty', text: '해당 사항 없음.' });
-    section('미완료 사항 및 특이사항', body);
+    section(d.notes.title.trim() || DEFAULT_NOTES_TITLE, body);
+  }
+
+  // 납품 및 검수 확인
+  section(
+    meta.inspectionHeading,
+    toParagraphs(d.inspection.text[type]).map((text, i) => ({ key: `insp-${i}`, kind: 'para' as const, text })),
+  );
+
+  // 유지관리 및 운영
+  if (d.maintenance.enabled) {
+    section(
+      '유지관리 및 운영',
+      toParagraphs(maintenanceText(d, true)).map((p, i) => ({ key: `maint-${i}`, kind: 'para' as const, ...toSegments(p) })),
+    );
+  }
+
+  // 추가 특이사항 (선택)
+  if (d.extra.enabled) {
+    const body: Unit[] = toParagraphs(d.extra.text).map((text, i) => ({ key: `extra-${i}`, kind: 'para' as const, text }));
+    if (!body.length) body.push({ key: 'extra-none', kind: 'empty', text: '해당 사항 없음.' });
+    section(d.extra.title.trim() || '기타 특이사항', body);
   }
 
   // 최종 확인

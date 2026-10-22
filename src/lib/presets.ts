@@ -73,7 +73,7 @@ function worldcrane(): DocumentData {
     items: worldcraneDeliverables(),
   };
   doc.maintenance.text = doc.maintenance.text.replace('계약에 따라', '상호 협의에 따라');
-  doc.notes = { enabled: true, items: [], memo: WORLDCRANE_MEMO };
+  doc.notes = { ...doc.notes, enabled: true, items: [], memo: WORLDCRANE_MEMO };
   doc.documentDate = '2026-10-19';
   return doc;
 }

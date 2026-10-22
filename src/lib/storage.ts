@@ -44,6 +44,7 @@ function normalize(raw: unknown): DocumentData | null {
       ...r.notes,
       items: Array.isArray(r.notes?.items) ? r.notes!.items : [],
     },
+    extra: { ...base.extra, ...r.extra },
     confirmation: { text: { ...base.confirmation.text, ...r.confirmation?.text } },
     signatures: { ...base.signatures, ...r.signatures },
     meta: { ...base.meta, ...r.meta },
