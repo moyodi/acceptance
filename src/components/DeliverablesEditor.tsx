@@ -18,7 +18,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Deliverable } from '../lib/types';
-import { DELIVERABLE_PRESETS, uid, type DeliverablePreset } from '../lib/defaults';
+import { uid } from '../lib/defaults';
+import { DELIVERABLE_PRESETS, type DeliverablePreset } from '../lib/presets';
 import { AutoTextarea, Icon } from './ui';
 
 interface Props {
