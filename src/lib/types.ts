@@ -12,6 +12,10 @@ export interface Deliverable {
   id: string;
   label: string;
   checked: boolean;
+  /** 구분 (예: 사용자 화면, 관리자 페이지) — 같은 구분이 이어지면 문서에서 묶어 표시 */
+  group: string;
+  /** 세부 내용 — 항목 아래 한 줄 설명 */
+  detail: string;
 }
 
 export interface NoteItem {

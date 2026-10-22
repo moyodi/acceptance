@@ -85,7 +85,20 @@ export const S = {
   item: { flexDirection: 'row', ...pad('1.7mm', '0mm'), borderBottom: line('0.75pt', C.faint) },
   itemFirst: { borderTop: line('0.75pt', C.hair), marginTop: '0.8mm' },
   itemNo: { width: '10mm', fontSize: '8.5pt', fontWeight: 600, color: C.muted, lineHeight: 1.85, paddingLeft: '1mm' },
-  itemText: { flex: 1, fontSize: '9.5pt', color: C.ink, lineHeight: 1.65 },
+  itemBody: { flex: 1 },
+  itemText: { fontSize: '9.5pt', color: C.ink, lineHeight: 1.65 },
+  itemDetail: { fontSize: '8.5pt', color: C.muted, lineHeight: 1.6 },
+  // 구분 제목 — 같은 구분의 항목들을 묶는다
+  groupHead: {
+    marginTop: '2.2mm',
+    ...pad('1.4mm', '2.2mm'),
+    backgroundColor: C.fill,
+    borderTop: line('0.75pt', C.hair),
+    fontSize: '8.5pt',
+    fontWeight: 700,
+    color: C.sub,
+    lineHeight: 1.5,
+  },
 
   // 미완료 사항 표
   noteHead: {
@@ -173,9 +186,15 @@ export function renderUnit(u: Unit, P: Primitives): ReactNode {
       break;
     case 'item':
       body = (
-        <View style={merge(S.item, u.index === 1 && S.itemFirst)}>
-          <Text style={S.itemNo}>{String(u.index).padStart(2, '0')}</Text>
-          <Text style={S.itemText}>{u.text}</Text>
+        <View>
+          {u.group ? <Text style={S.groupHead}>{u.group}</Text> : null}
+          <View style={merge(S.item, u.index === 1 && !u.group && S.itemFirst)}>
+            <Text style={S.itemNo}>{String(u.index).padStart(2, '0')}</Text>
+            <View style={S.itemBody}>
+              <Text style={S.itemText}>{u.text}</Text>
+              {u.detail ? <Text style={S.itemDetail}>{u.detail}</Text> : null}
+            </View>
+          </View>
         </View>
       );
       break;

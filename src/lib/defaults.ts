@@ -86,8 +86,58 @@ function defaultDeliverables(checkedLabels: string[] = []): Deliverable[] {
     id: uid(),
     label,
     checked: checkedLabels.includes(label),
+    group: '',
+    detail: '',
   }));
 }
+
+/**
+ * 납품 항목 세트 — 편집 화면에서 불러와 납품 내역을 한 번에 구성한다.
+ * 회원제 상품 카탈로그 세트는 계약서 별첨 「웹사이트 구현기능 명세서」의 구성을 따른다.
+ */
+type PresetRow = [group: string, label: string, detail: string];
+
+const MEMBER_CATALOG_ROWS: PresetRow[] = [
+  ['사용자 화면', '상품 목록 (카탈로그)', '리스트형 상품 목록 — 상품 일련번호·이미지·상품명·가격·VAT 표기·소비자가·정품 여부·품절 여부 표시'],
+  ['사용자 화면', '상품 검색 · 카테고리 · 정렬', '상품명 등 상품정보 검색, 카테고리별 조회, 관리자 노출 순서 및 등록순·상품명순·가격순 정렬'],
+  ['사용자 화면', '장바구니', '상품 담기·목록 조회·수량 확인 및 변경·개별/전체 삭제, 상품별 공급가액·부가세 표시 (주문·결제 기능 제외)'],
+  ['회원', '회원가입', '아이디·비밀번호·이름·연락처·업체명·사업자등록번호 입력, 필수값 검증, 아이디 중복 확인'],
+  ['회원', '로그인', '아이디 로그인, 로그인 상태 유지, 로그아웃'],
+  ['회원', '회원 승인', '승인 대기·승인 완료·승인 거절 상태 관리, 승인 완료 회원만 상품 목록 접근'],
+  ['회원', '회원정보 관리', '회원정보 조회·수정, 비밀번호 변경'],
+  ['관리자 페이지', '관리자 로그인', '관리자 계정으로 관리자 페이지 접근'],
+  ['관리자 페이지', '상품 관리', '상품 목록 조회·검색, 등록·수정·삭제, 노출/비노출 및 품절 여부 설정, 상품 일련번호 자동 생성'],
+  ['관리자 페이지', '회원 관리', '회원 목록·검색·상세정보 조회, 회원 승인 여부 처리, 회원정보 수정'],
+  ['부가 기능 (제작사 제안 반영)', '팝업 관리', '팝업 등록·수정·삭제, 노출/비노출·노출기간·링크 설정, 팝업 이미지 등록'],
+  ['부가 기능 (제작사 제안 반영)', '퀵메뉴 관리', '퀵메뉴 등록·수정·삭제, 노출/비노출·링크·노출 순서 설정'],
+  ['공통', '반응형 웹', 'PC·태블릿·모바일 화면 크기에 따라 레이아웃이 자동 변경되는 반응형 웹 구축'],
+];
+
+export interface DeliverablePreset {
+  id: string;
+  label: string;
+  description: string;
+  intro: string;
+  build: () => Deliverable[];
+}
+
+export const DELIVERABLE_PRESETS: DeliverablePreset[] = [
+  {
+    id: 'member-catalog',
+    label: '회원제 상품 카탈로그',
+    description: '구현기능 명세서 기준 — 사용자 화면 · 회원 · 관리자 페이지 · 제안 기능(팝업·퀵메뉴) · 반응형',
+    intro:
+      '본 홈페이지는 발주사와 제작사 간 체결한 사이트 개발 용역계약 및 별첨 「웹사이트 구현기능 명세서」를 바탕으로 제작되었으며, 아래 주요 기능을 포함합니다.',
+    build: () => MEMBER_CATALOG_ROWS.map(([group, label, detail]) => ({ id: uid(), label, checked: true, group, detail })),
+  },
+  {
+    id: 'basic',
+    label: '기본 항목',
+    description: '일반 홈페이지 제작 항목 10종 (선택 해제 상태)',
+    intro: DEFAULT_DELIVERABLES_INTRO,
+    build: () => defaultDeliverables(),
+  },
+];
 
 /** 빈 새 문서 — 기본 문구는 유지하고 프로젝트 정보는 비운다. */
 export function createBlankDocument(): DocumentData {

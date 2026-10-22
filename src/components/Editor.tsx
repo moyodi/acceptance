@@ -14,6 +14,7 @@ import type { ValidationError } from '../lib/validation';
 import { maintenancePeriodLabel } from '../doc/model';
 import { AutoTextarea, Card, Field, Icon, ResetTextButton, Toggle } from './ui';
 import { StampUpload } from './StampUpload';
+import type { ConfirmOptions } from './Dialogs';
 import { DeliverablesEditor } from './DeliverablesEditor';
 
 export type Edit = (mutate: (draft: DocumentData) => void) => void;
@@ -26,6 +27,7 @@ interface Props {
   onDismissSample: () => void;
   onStartBlank: () => void;
   onError: (message: string) => void;
+  confirm: (opts: ConfirmOptions) => Promise<boolean>;
 }
 
 export const EDITOR_SECTIONS = [
@@ -39,7 +41,7 @@ export const EDITOR_SECTIONS = [
   { id: 'sec-signature', label: '서명 정보' },
 ];
 
-export function Editor({ data, edit, errors, showErrors, onDismissSample, onStartBlank, onError }: Props) {
+export function Editor({ data, edit, errors, showErrors, onDismissSample, onStartBlank, onError, confirm }: Props) {
   const type = data.documentType;
   const err = (fieldId: string) => (showErrors ? errors.find((e) => e.fieldId === fieldId)?.message : undefined);
   const inputProps = (fieldId: string) => {
@@ -152,7 +154,7 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
       </Card>
 
       {/* 03 납품 항목 */}
-      <Card id="sec-deliverables" num="03" title="제작 및 납품 내역" description="기본 항목은 예시입니다. 프로젝트에 해당하는 항목만 선택하고, 이름 수정·추가·삭제·순서 변경(드래그)이 가능합니다.">
+      <Card id="sec-deliverables" num="03" title="제작 및 납품 내역" description="프로젝트에 해당하는 항목만 선택하세요. 항목마다 구분과 세부 내용을 적을 수 있고, 같은 구분이 이어지면 문서에서 한 묶음으로 표시됩니다. 이름 수정·추가·삭제·순서 변경(드래그)이 가능합니다.">
         <Field id="f-deliv-intro" label="안내 문구">
           <AutoTextarea id="f-deliv-intro" value={data.deliverables.intro} onChange={(e) => edit((d) => void (d.deliverables.intro = e.target.value))} />
         </Field>
@@ -166,6 +168,18 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
           items={data.deliverables.items}
           error={err('f-deliverables')}
           onChange={(items) => edit((d) => void (d.deliverables.items = items))}
+          onApplyPreset={async (preset) => {
+            const ok = await confirm({
+              title: '항목 세트 불러오기',
+              message: `현재 납품 항목과 안내 문구를 「${preset.label}」 세트로 바꿀까요?\n직접 수정한 항목은 사라집니다.`,
+              confirmLabel: '불러오기',
+            });
+            if (ok)
+              edit((d) => {
+                d.deliverables.items = preset.build();
+                d.deliverables.intro = preset.intro;
+              });
+          }}
         />
       </Card>
 

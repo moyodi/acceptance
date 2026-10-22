@@ -23,7 +23,14 @@ export type Unit =
   | (Base & { kind: 'title'; title: string; eyebrow: string })
   | (Base & { kind: 'para'; text: string })
   | (Base & { kind: 'kv'; rows: { label: string; value: string }[] })
-  | (Base & { kind: 'item'; index: number; text: string })
+  | (Base & {
+      kind: 'item';
+      index: number;
+      text: string;
+      detail: string;
+      /** 구분이 바뀌는 첫 항목에만 — 구분 제목을 항목과 함께 묶어 표시 */
+      group?: string;
+    })
   | (Base & { kind: 'empty'; text: string })
   | (Base & {
       kind: 'noteRow';
@@ -106,7 +113,19 @@ export function buildUnits(d: DocumentData): Unit[] {
     text,
   }));
   if (items.length) {
-    items.forEach((it, i) => deliv.push({ key: `deliv-${it.id}`, kind: 'item', index: i + 1, text: it.label.trim() }));
+    let prevGroup = '';
+    items.forEach((it, i) => {
+      const group = it.group.trim();
+      deliv.push({
+        key: `deliv-${it.id}`,
+        kind: 'item',
+        index: i + 1,
+        text: it.label.trim(),
+        detail: it.detail.trim(),
+        group: group && group !== prevGroup ? group : undefined,
+      });
+      prevGroup = group;
+    });
   } else {
     deliv.push({ key: 'deliv-empty', kind: 'empty', text: '선택된 납품 항목이 없습니다.' });
   }

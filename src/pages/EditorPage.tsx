@@ -338,6 +338,7 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
               onDismissSample={() => edit((d) => void (d.meta.isSample = false))}
               onStartBlank={resetDocument}
               onError={(message) => notify({ kind: 'error', message })}
+              confirm={askConfirm}
             />
           </div>
         </div>

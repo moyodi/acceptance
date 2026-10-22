@@ -18,17 +18,20 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { Deliverable } from '../lib/types';
-import { uid } from '../lib/defaults';
-import { Icon } from './ui';
+import { DELIVERABLE_PRESETS, uid, type DeliverablePreset } from '../lib/defaults';
+import { AutoTextarea, Icon } from './ui';
 
 interface Props {
   items: Deliverable[];
   onChange: (items: Deliverable[]) => void;
+  onApplyPreset: (preset: DeliverablePreset) => void;
   error?: string;
 }
 
-export function DeliverablesEditor({ items, onChange, error }: Props) {
+export function DeliverablesEditor({ items, onChange, onApplyPreset, error }: Props) {
   const [draft, setDraft] = useState('');
+  const [presetId, setPresetId] = useState(DELIVERABLE_PRESETS[0].id);
+  const groups = Array.from(new Set(items.map((i) => i.group.trim()).filter(Boolean)));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
@@ -52,14 +55,43 @@ export function DeliverablesEditor({ items, onChange, error }: Props) {
   const add = () => {
     const label = draft.trim();
     if (!label) return;
-    onChange([...items, { id: uid(), label, checked: true }]);
+    // 새 항목은 마지막 항목과 같은 구분으로 추가
+    const group = items.length ? items[items.length - 1].group : '';
+    onChange([...items, { id: uid(), label, checked: true, group, detail: '' }]);
     setDraft('');
   };
 
   const checkedCount = items.filter((i) => i.checked).length;
 
+  const preset = DELIVERABLE_PRESETS.find((p) => p.id === presetId)!;
+
   return (
     <div>
+      <div className="mb-4 rounded-md border border-line bg-bg-subtle px-4 py-3">
+        <label htmlFor="f-deliv-preset" className="text-compact font-semibold text-fg-secondary">
+          항목 세트 불러오기
+        </label>
+        <div className="mt-1.5 flex gap-2">
+          <select id="f-deliv-preset" className="input h-control flex-1 min-w-0" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
+            {DELIVERABLE_PRESETS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn-secondary h-control flex-none" onClick={() => onApplyPreset(preset)}>
+            불러오기
+          </button>
+        </div>
+        <p className="mt-1.5 text-caption text-fg-tertiary">{preset.description}. 현재 납품 항목과 안내 문구를 바꿉니다.</p>
+      </div>
+
+      <datalist id="deliv-groups">
+        {groups.map((g) => (
+          <option key={g} value={g} />
+        ))}
+      </datalist>
+
       <div className="flex items-center justify-between mb-2">
         <p className="text-caption text-fg-tertiary">
           선택한 항목만 문서에 반영됩니다 · <b className="text-fg-secondary">{checkedCount}</b> / {items.length}개 선택
@@ -149,10 +181,9 @@ function Row({
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`flex items-center gap-2 pl-1.5 pr-2 py-1.5 bg-bg-surface ${isDragging ? 'relative z-10 shadow-lg' : ''} ${
-        item.checked ? '' : 'bg-bg-default'
-      }`}
+      className={`pl-1.5 pr-2 py-1.5 bg-bg-surface ${isDragging ? 'relative z-10 shadow-lg' : ''} ${item.checked ? '' : 'bg-bg-default'}`}
     >
+      <div className="flex items-center gap-2">
       <button
         type="button"
         ref={setActivatorNodeRef}
@@ -206,6 +237,25 @@ function Row({
         >
           <Icon name="trash" size={14} />
         </button>
+      </div>
+      </div>
+      <div className="flex items-start gap-1.5 pl-[58px] pr-1 pb-1">
+        <input
+          list="deliv-groups"
+          className="w-28 sm:w-36 flex-none h-7 px-2 rounded-sm border border-line bg-bg-surface text-caption text-fg-secondary placeholder:text-fg-tertiary focus:border-line-focus focus:outline-none"
+          placeholder="구분"
+          value={item.group}
+          onChange={(e) => onPatch({ group: e.target.value })}
+          aria-label={`납품 항목 ${index + 1} 구분`}
+        />
+        <AutoTextarea
+          rows={1}
+          className="flex-1 min-w-0 !min-h-7 !px-2 !py-[3px] !text-caption !leading-[18px] !text-fg-secondary !resize-none"
+          placeholder="세부 내용 (선택)"
+          value={item.detail}
+          onChange={(e) => onPatch({ detail: e.target.value })}
+          aria-label={`납품 항목 ${index + 1} 세부 내용`}
+        />
       </div>
     </div>
   );

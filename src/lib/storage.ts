@@ -33,7 +33,9 @@ function normalize(raw: unknown): DocumentData | null {
     deliverables: {
       ...base.deliverables,
       ...r.deliverables,
-      items: Array.isArray(r.deliverables?.items) ? r.deliverables!.items : base.deliverables.items,
+      items: Array.isArray(r.deliverables?.items)
+        ? r.deliverables!.items.map((i) => ({ ...i, group: i.group ?? '', detail: i.detail ?? '' }))
+        : base.deliverables.items,
     },
     inspection: { text: { ...base.inspection.text, ...r.inspection?.text } },
     maintenance: { ...base.maintenance, ...r.maintenance },
