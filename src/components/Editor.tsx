@@ -344,7 +344,7 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
       </Card>
 
       {/* 08 서명 */}
-      <Card id="sec-signature" num="08" title="서명 및 날인" description="상호·대표자는 프로젝트 정보에서 가져옵니다. 도장 이미지를 첨부하거나, 출력 후 직접 서명·날인할 수 있습니다.">
+      <Card id="sec-signature" num="08" title="서명 및 날인" description="상호·대표자는 프로젝트 정보와 연동되어 어느 쪽에서 수정해도 함께 바뀝니다. 도장 이미지를 첨부하거나, 출력 후 직접 서명·날인할 수 있습니다.">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field id="f-document-date" label="확인서 작성일" required className="sm:col-span-2" error={err('f-document-date')} hint={formatKDate(data.documentDate) || undefined}>
             <input {...inputProps('f-document-date')} type="date" className="input" value={data.documentDate} onChange={(e) => edit((d) => void (d.documentDate = e.target.value))} />
@@ -356,21 +356,36 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
             <input id="f-sign-provider" className="input" value={data.signatures.providerLabel} onChange={(e) => edit((d) => void (d.signatures.providerLabel = e.target.value))} />
           </Field>
         </div>
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 gap-3">
           {(
             [
-              { key: 'clientStamp', role: data.signatures.clientLabel || '발주사', p: data.client },
-              { key: 'providerStamp', role: data.signatures.providerLabel || '제작사', p: data.provider },
+              { key: 'clientStamp', party: 'client', role: data.signatures.clientLabel || '발주사', p: data.client },
+              { key: 'providerStamp', party: 'provider', role: data.signatures.providerLabel || '제작사', p: data.provider },
             ] as const
-          ).map(({ key, role, p }) => (
+          ).map(({ key, party, role, p }) => (
             <div key={key} className="rounded-md bg-bg-subtle border border-line px-4 py-3">
               <p className="text-caption font-semibold text-fg-tertiary">{role}</p>
               <div className="mt-1 flex items-center gap-3">
-                <div className="flex-1 min-w-0 text-compact">
-                  <p className="text-fg-primary truncate">{p.name || <span className="text-fg-tertiary">상호 미입력</span>}</p>
-                  <p className="text-fg-secondary truncate">
-                    {p.representative ? `대표자 ${p.representative}` : <span className="text-fg-tertiary">대표자 미입력</span>}
-                  </p>
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                  {(
+                    [
+                      { field: 'name', label: '상호' },
+                      { field: 'representative', label: '대표자' },
+                    ] as const
+                  ).map(({ field, label }) => (
+                    <div key={field} className="flex items-center gap-2">
+                      <label htmlFor={`f-sign-${party}-${field}`} className="w-11 flex-none text-caption text-fg-tertiary">
+                        {label}
+                      </label>
+                      <input
+                        id={`f-sign-${party}-${field}`}
+                        className="flex-1 min-w-0 h-8 px-2 rounded-sm border border-line-strong bg-bg-surface text-compact text-fg-primary placeholder:text-fg-tertiary focus:border-line-focus focus:outline-none"
+                        placeholder={`${label} 입력`}
+                        value={p[field]}
+                        onChange={(e) => edit((d) => void (d[party][field] = e.target.value))}
+                      />
+                    </div>
+                  ))}
                 </div>
                 <StampUpload
                   id={`f-${key}`}
