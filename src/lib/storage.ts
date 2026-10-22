@@ -14,7 +14,23 @@ export interface StoredDoc {
   id: string;
   createdAt: string;
   updatedAt: string;
+  /** 처음 PDF 저장·인쇄한 시각 — 있으면 「발행됨」 */
+  issuedAt?: string;
+  /** 서명된 확인서를 회수해 납품 완료로 표시한 시각 — 있으면 「납품 완료」 */
+  completedAt?: string;
   data: DocumentData;
+}
+
+export type DocStatus = 'draft' | 'issued' | 'completed';
+
+export const STATUS_LABEL: Record<DocStatus, string> = {
+  draft: '작성 중',
+  issued: '발행됨',
+  completed: '납품 완료',
+};
+
+export function docStatus(d: Pick<StoredDoc, 'issuedAt' | 'completedAt'>): DocStatus {
+  return d.completedAt ? 'completed' : d.issuedAt ? 'issued' : 'draft';
 }
 
 /** 저장본을 현재 스키마에 맞춰 보정 (누락 필드는 기본값으로 채움) */
@@ -97,7 +113,9 @@ function readAll(): StoredDoc[] {
       return (parsed.docs ?? []).flatMap((d) => {
         const e = d as StoredDoc;
         const data = normalize(e?.data);
-        return data && e.id ? [{ id: e.id, createdAt: e.createdAt, updatedAt: e.updatedAt, data }] : [];
+        return data && e.id
+          ? [{ id: e.id, createdAt: e.createdAt, updatedAt: e.updatedAt, issuedAt: e.issuedAt, completedAt: e.completedAt, data }]
+          : [];
       });
     }
     let seed: StoredDoc;
@@ -139,6 +157,26 @@ export function saveDoc(id: string, data: DocumentData): string | null {
   if (i < 0) return null;
   docs[i] = { ...docs[i], updatedAt: at, data };
   return writeAll(docs) ? at : null;
+}
+
+/** 상태 기록 — 문서 내용의 수정 시각(updatedAt)은 바꾸지 않는다 */
+function patchMeta(id: string, patch: Partial<Pick<StoredDoc, 'issuedAt' | 'completedAt'>>): StoredDoc | null {
+  const docs = readAll();
+  const i = docs.findIndex((d) => d.id === id);
+  if (i < 0) return null;
+  docs[i] = { ...docs[i], ...patch };
+  return writeAll(docs) ? docs[i] : null;
+}
+
+/** PDF 저장·인쇄 시 호출 — 처음 발행한 시각만 남긴다 */
+export function markIssued(id: string): StoredDoc | null {
+  const doc = getDoc(id);
+  if (!doc) return null;
+  return doc.issuedAt ? doc : patchMeta(id, { issuedAt: new Date().toISOString() });
+}
+
+export function setCompleted(id: string, completed: boolean): StoredDoc | null {
+  return patchMeta(id, { completedAt: completed ? new Date().toISOString() : undefined });
 }
 
 export function duplicateDoc(id: string): StoredDoc | null {

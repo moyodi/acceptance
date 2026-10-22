@@ -1,7 +1,19 @@
 import { useMemo, useState } from 'react';
 import type { DocType } from '../lib/types';
 import { createBlankDocument, createSampleDocument, DOC_TYPE_META } from '../lib/defaults';
-import { clearStoredData, createDoc, deleteDoc, duplicateDoc, listDocs, restoreDoc, type StoredDoc } from '../lib/storage';
+import {
+  clearStoredData,
+  createDoc,
+  deleteDoc,
+  docStatus,
+  duplicateDoc,
+  listDocs,
+  restoreDoc,
+  setCompleted,
+  STATUS_LABEL,
+  type DocStatus,
+  type StoredDoc,
+} from '../lib/storage';
 import { formatKDate } from '../lib/format';
 import { docHref, navigate } from '../lib/router';
 import { useFeedback } from '../components/useFeedback';
@@ -20,6 +32,7 @@ export function ListPage() {
   const [docs, setDocs] = useState<StoredDoc[]>(() => listDocs());
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<DocType | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<DocStatus | 'all'>('all');
   const [clientName, setClientName] = useState('');
   const [createError, setCreateError] = useState('');
   const { notify, askConfirm, feedbackUi } = useFeedback();
@@ -30,10 +43,29 @@ export function ListPage() {
     const q = query.trim().toLowerCase();
     return docs.filter((d) => {
       if (typeFilter !== 'all' && d.data.documentType !== typeFilter) return false;
+      if (statusFilter !== 'all' && docStatus(d) !== statusFilter) return false;
       if (!q) return true;
       return [d.data.client.name, d.data.project.name, d.data.provider.name].some((v) => v.toLowerCase().includes(q));
     });
-  }, [docs, query, typeFilter]);
+  }, [docs, query, typeFilter, statusFilter]);
+
+  const statusCounts = useMemo(() => {
+    const c: Record<DocStatus | 'all', number> = { all: docs.length, draft: 0, issued: 0, completed: 0 };
+    docs.forEach((d) => (c[docStatus(d)] += 1));
+    return c;
+  }, [docs]);
+
+  const toggleCompleted = (d: StoredDoc) => {
+    const done = docStatus(d) === 'completed';
+    setCompleted(d.id, !done);
+    refresh();
+    const name = d.data.client.name || d.data.project.name || '확인서';
+    notify({
+      kind: done ? 'info' : 'success',
+      message: done ? `「${name}」 납품 완료 표시를 해제했습니다.` : `「${name}」을(를) 납품 완료로 표시했습니다.`,
+      action: { label: '실행 취소', run: () => (setCompleted(d.id, done), refresh()) },
+    });
+  };
 
   const create = (sample = false) => {
     const data = sample ? createSampleDocument() : createBlankDocument();
@@ -182,6 +214,26 @@ export function ListPage() {
             </div>
           </div>
 
+          <div role="tablist" aria-label="상태별 보기" className="flex gap-1 px-5 sm:px-6 pb-3 overflow-x-auto">
+            {(['all', 'draft', 'issued', 'completed'] as const).map((k) => {
+              const on = statusFilter === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setStatusFilter(k)}
+                  className={`flex-none h-8 px-3 rounded-full text-compact font-semibold transition-colors border ${
+                    on ? 'bg-fg-primary text-fg-inverse border-fg-primary' : 'bg-bg-surface text-fg-secondary border-line hover:bg-bg-subtle'
+                  }`}
+                >
+                  {k === 'all' ? '전체' : STATUS_LABEL[k]} <span className={on ? 'opacity-70' : 'text-fg-tertiary'}>{statusCounts[k]}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {filtered.length === 0 ? (
             <div className="px-6 py-14 text-center border-t border-bg-subtle">
               <p className="text-body text-fg-secondary">
@@ -205,17 +257,18 @@ export function ListPage() {
                 <thead>
                   <tr className="border-t border-bg-subtle text-left text-caption text-fg-tertiary">
                     <th className="font-semibold py-2.5 pl-6 pr-2">발주사 / 프로젝트</th>
-                    <th className="font-semibold py-2.5 px-2 w-[110px]">유형</th>
+                    <th className="font-semibold py-2.5 px-2 w-[120px]">상태</th>
+                    <th className="font-semibold py-2.5 px-2 w-[96px]">유형</th>
                     <th className="font-semibold py-2.5 px-2 w-[140px]">납품일</th>
                     <th className="font-semibold py-2.5 px-2 w-[110px]">최종 수정</th>
-                    <th className="py-2.5 pl-2 pr-6 w-[200px]">
+                    <th className="py-2.5 pl-2 pr-6 w-[290px]">
                       <span className="sr-only">작업</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((d) => (
-                    <tr key={d.id} className="border-t border-bg-subtle hover:bg-bg-default">
+                    <tr key={d.id} className={`border-t border-bg-subtle hover:bg-bg-default ${docStatus(d) === 'completed' ? 'bg-[#F6FBF7]' : ''}`}>
                       <td className="py-3 pl-6 pr-2">
                         <a href={docHref(d.id)} className="block min-w-0 group">
                           <span className="flex items-center gap-1.5">
@@ -228,12 +281,15 @@ export function ListPage() {
                         </a>
                       </td>
                       <td className="py-3 px-2">
+                        <StatusBadge doc={d} />
+                      </td>
+                      <td className="py-3 px-2">
                         <TypeBadge type={d.data.documentType} />
                       </td>
                       <td className="py-3 px-2 text-fg-secondary tabular-nums">{formatKDate(d.data.project.deliveryDate) || '-'}</td>
                       <td className="py-3 px-2 text-fg-secondary tabular-nums">{fmtDateTime(d.updatedAt)}</td>
                       <td className="py-3 pl-2 pr-6">
-                        <RowActions doc={d} onDuplicate={() => duplicate(d)} onDelete={() => remove(d)} />
+                        <RowActions doc={d} onToggleCompleted={() => toggleCompleted(d)} onDuplicate={() => duplicate(d)} onDelete={() => remove(d)} />
                       </td>
                     </tr>
                   ))}
@@ -243,9 +299,10 @@ export function ListPage() {
               {/* 모바일: 카드 목록 */}
               <ul className="md:hidden border-t border-bg-subtle divide-y divide-bg-subtle">
                 {filtered.map((d) => (
-                  <li key={d.id} className="px-5 py-4">
+                  <li key={d.id} className={`px-5 py-4 ${docStatus(d) === 'completed' ? 'bg-[#F6FBF7]' : ''}`}>
                     <a href={docHref(d.id)} className="block">
                       <span className="flex items-center gap-1.5 flex-wrap">
+                        <StatusBadge doc={d} />
                         <TypeBadge type={d.data.documentType} />
                         {d.data.meta.isSample && <SampleBadge />}
                       </span>
@@ -258,7 +315,7 @@ export function ListPage() {
                       </span>
                     </a>
                     <div className="mt-3">
-                      <RowActions doc={d} onDuplicate={() => duplicate(d)} onDelete={() => remove(d)} />
+                      <RowActions doc={d} onToggleCompleted={() => toggleCompleted(d)} onDuplicate={() => duplicate(d)} onDelete={() => remove(d)} />
                     </div>
                   </li>
                 ))}
@@ -295,13 +352,62 @@ function SampleBadge() {
   return <span className="inline-flex items-center rounded-full bg-warn-subtle text-warn border border-warn-line text-[11px] font-semibold px-2 py-px">샘플</span>;
 }
 
-function RowActions({ doc, onDuplicate, onDelete }: { doc: StoredDoc; onDuplicate: () => void; onDelete: () => void }) {
-  const name = doc.data.client.name || doc.data.project.name || '문서';
+const shortDate = (iso?: string) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** 작성 중 → 발행됨(PDF 저장·인쇄) → 납품 완료(서명 확인서 회수) */
+export function StatusBadge({ doc }: { doc: Pick<StoredDoc, 'issuedAt' | 'completedAt'> }) {
+  const st = docStatus(doc);
+  const cls = {
+    draft: 'bg-bg-subtle text-fg-tertiary border-line',
+    issued: 'bg-bg-primary-subtle text-bg-primary-hover border-[#BFDBFE]',
+    completed: 'bg-[#ECFDF3] text-[#15803D] border-[#BBF7D0]',
+  }[st];
+  const when = st === 'completed' ? shortDate(doc.completedAt) : st === 'issued' ? shortDate(doc.issuedAt) : '';
   return (
-    <div className="flex items-center md:justify-end gap-1">
+    <span className="inline-flex flex-col items-start">
+      <span className={`inline-flex items-center gap-1 rounded-full border text-caption font-semibold px-2.5 py-px ${cls}`}>
+        {st === 'completed' && (
+          <svg width="11" height="11" viewBox="0 0 16 16" aria-hidden>
+            <path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {STATUS_LABEL[st]}
+      </span>
+      {when && <span className="mt-0.5 text-[11px] text-fg-tertiary tabular-nums">{when}</span>}
+    </span>
+  );
+}
+
+function RowActions({
+  doc,
+  onToggleCompleted,
+  onDuplicate,
+  onDelete,
+}: {
+  doc: StoredDoc;
+  onToggleCompleted: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const name = doc.data.client.name || doc.data.project.name || '문서';
+  const done = docStatus(doc) === 'completed';
+  return (
+    <div className="flex items-center md:justify-end gap-1 flex-wrap">
       <a href={docHref(doc.id)} className="btn-secondary text-fg-link">
         열람 / 편집
       </a>
+      <button
+        type="button"
+        className={done ? 'btn-ghost text-fg-tertiary' : 'btn-ghost text-[#15803D] hover:bg-[#ECFDF3]'}
+        onClick={onToggleCompleted}
+        aria-label={done ? `${name} 납품 완료 해제` : `${name} 납품 완료로 표시`}
+      >
+        {done ? '완료 해제' : '납품 완료'}
+      </button>
       <button type="button" className="btn-ghost" onClick={onDuplicate} aria-label={`${name} 복제`}>
         복제
       </button>

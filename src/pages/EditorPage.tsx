@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DocumentData } from '../lib/types';
 import { createBlankDocument, createSampleDocument, DOC_TYPE_META } from '../lib/defaults';
-import { createDoc, deleteDoc, getDoc, saveDoc, type StoredDoc } from '../lib/storage';
+import { createDoc, deleteDoc, docStatus, getDoc, markIssued, saveDoc, setCompleted, type StoredDoc } from '../lib/storage';
+import { StatusBadge } from './ListPage';
 import { buildFileName } from '../lib/format';
 import { validate } from '../lib/validation';
 import { docHref, listHref, navigate } from '../lib/router';
@@ -38,6 +39,27 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
   const [savedAt, setSavedAt] = useState<string | null>(entry.updatedAt);
   /** 사용자가 수정했을 때만 저장한다 (열어보기만 해도 수정 시각이 바뀌지 않도록) */
   const [dirty, setDirty] = useState(false);
+  /** 발행·납품 완료 상태 (문서 내용과 별도로 저장) */
+  const [status, setStatus] = useState<Pick<StoredDoc, 'issuedAt' | 'completedAt'>>({ issuedAt: entry.issuedAt, completedAt: entry.completedAt });
+  const recordIssued = () => {
+    const m = markIssued(docId);
+    if (m) setStatus({ issuedAt: m.issuedAt, completedAt: m.completedAt });
+  };
+  const completed = docStatus(status) === 'completed';
+  const toggleCompleted = async () => {
+    setMenuOpen(false);
+    if (!completed) {
+      const ok = await askConfirm({
+        title: '납품 완료로 표시',
+        message: '발주사 서명을 받은 확인서를 회수했다면 납품 완료로 표시하세요.\n목록에서 「납품 완료」로 구분되며, 언제든 해제할 수 있습니다.',
+        confirmLabel: '납품 완료',
+      });
+      if (!ok) return;
+    }
+    const m = setCompleted(docId, !completed);
+    if (m) setStatus({ issuedAt: m.issuedAt, completedAt: m.completedAt });
+    notify({ kind: completed ? 'info' : 'success', message: completed ? '납품 완료 표시를 해제했습니다.' : '납품 완료로 표시했습니다.' });
+  };
   const [tab, setTab] = useState<Tab>('edit');
   const [zoom, setZoom] = useState<Zoom>('fit');
   const [pageCount, setPageCount] = useState(1);
@@ -130,6 +152,7 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      recordIssued();
       notify({ kind: 'success', message: `${fileName} 다운로드를 시작했습니다.` });
     } catch (e) {
       console.error(e);
@@ -150,6 +173,7 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
       window.removeEventListener('afterprint', restore);
     };
     window.addEventListener('afterprint', restore);
+    recordIssued();
     window.print();
   };
 
@@ -222,6 +246,9 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
             <span className="w-px h-4 bg-line flex-none" aria-hidden />
             <h1 className="text-compact font-semibold text-fg-primary truncate">{docLabel}</h1>
             <span className="pill hidden sm:inline-flex flex-none">{DOC_TYPE_META[data.documentType].short}</span>
+            <span className="hidden sm:inline-flex flex-none [&>span]:flex-row [&>span]:items-center [&>span]:gap-1">
+              <StatusBadge doc={status} />
+            </span>
             {saveLabel && (
               <span className="hidden xl:inline text-caption text-fg-tertiary whitespace-nowrap" aria-live="polite">
                 · {saveLabel}
@@ -244,6 +271,13 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
                 삭제
               </button>
               <span className="w-px h-5 bg-line mx-1" aria-hidden />
+              <button
+                type="button"
+                className={completed ? 'btn-ghost text-fg-tertiary' : 'btn-secondary text-[#15803D] border-[#BBF7D0] hover:bg-[#ECFDF3]'}
+                onClick={toggleCompleted}
+              >
+                {completed ? '완료 해제' : '납품 완료'}
+              </button>
               <button type="button" className="btn-secondary" onClick={print}>
                 <Icon name="print" /> 인쇄
               </button>
@@ -271,6 +305,7 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
                       { label: '새 문서 작성', run: newDocument },
                       { label: '기본값 불러오기', run: loadDefaults },
                       { label: '인쇄하기', run: print },
+                      { label: completed ? '납품 완료 해제' : '납품 완료로 표시', run: toggleCompleted },
                       { label: '입력 내용 초기화', run: resetDocument, danger: true },
                       { label: '문서 삭제', run: removeDocument, danger: true },
                     ].map((m) => (
@@ -330,6 +365,14 @@ function EditorScreen({ entry }: { entry: StoredDoc }) {
           className={`no-print lg:block lg:overflow-y-auto lg:border-r lg:border-line ${tab === 'edit' ? 'block' : 'hidden'}`}
         >
           <div className="max-w-[760px] mx-auto px-4 py-5 lg:px-6 lg:py-6">
+            {completed && (
+              <div role="note" className="mb-4 rounded-md border border-[#BBF7D0] bg-[#ECFDF3] px-4 py-3 text-compact text-[#166534]">
+                <p className="font-semibold">납품 완료된 확인서입니다</p>
+                <p className="mt-0.5">
+                  서명을 받아 회수한 문서라면 내용을 바꾸지 않는 것이 좋습니다. 수정이 필요하면 목록에서 「복제」해 새 문서로 작성하세요.
+                </p>
+              </div>
+            )}
             <Editor
               data={data}
               edit={edit}
