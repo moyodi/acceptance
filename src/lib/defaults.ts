@@ -41,9 +41,9 @@ export const DEFAULT_INSPECTION: Record<DocType, string> = {
   ].join('\n\n'),
 };
 
-/** {기준}: 유지관리 시작 기준, {기간}: 유지관리 기간(일) */
+/** {기준}: 유지관리 시작 기준, {기간}: 유지관리 기간(단위 포함, 예: 90일 / 3개월) */
 export const DEFAULT_MAINTENANCE_TEXT = [
-  '제작사는 계약에 따라 {기준}로부터 {기간}일간 제작 범위 내 기능 오류 및 하자에 대한 점검과 보수를 지원합니다.',
+  '제작사는 계약에 따라 {기준}로부터 {기간}간 제작 범위 내 기능 오류 및 하자에 대한 점검과 보수를 지원합니다.',
   '홈페이지 운영에 따른 상품 정보 등록 및 수정, 회원 승인 및 관리, 게시 콘텐츠의 적법성 및 정확성 등 실질적인 사이트 운영에 관한 사항은 발주사에서 관리합니다.',
   '유지관리 기간 종료 후 발생하는 추가 수정 및 관리 업무는 별도 협의를 통해 진행합니다.',
 ].join('\n\n');
@@ -105,6 +105,7 @@ export function createBlankDocument(): DocumentData {
     maintenance: {
       enabled: true,
       days: DEFAULT_MAINTENANCE_DAYS,
+      unit: 'day',
       startBasis: DEFAULT_MAINTENANCE_BASIS,
       startDate: '',
       text: DEFAULT_MAINTENANCE_TEXT,

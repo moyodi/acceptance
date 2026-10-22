@@ -38,7 +38,7 @@ function normalize(raw: unknown): DocumentData | null {
         : base.deliverables.items,
     },
     inspection: { text: { ...base.inspection.text, ...r.inspection?.text } },
-    maintenance: { ...base.maintenance, ...r.maintenance },
+    maintenance: migrateMaintenance({ ...base.maintenance, ...r.maintenance }, r.maintenance?.unit),
     notes: {
       ...base.notes,
       ...r.notes,
@@ -48,6 +48,12 @@ function normalize(raw: unknown): DocumentData | null {
     signatures: { ...base.signatures, ...r.signatures },
     meta: { ...base.meta, ...r.meta },
   } as DocumentData;
+}
+
+/** 단위 선택 이전 저장본: 단위가 없으면 '일', 문구의 「{기간}일간」은 「{기간}간」으로 (치환값에 단위가 포함됨) */
+function migrateMaintenance(m: DocumentData['maintenance'], storedUnit: unknown): DocumentData['maintenance'] {
+  if (storedUnit === 'day' || storedUnit === 'month') return m;
+  return { ...m, unit: 'day', text: m.text.replace(/\{기간\}일/g, '{기간}') };
 }
 
 function newEntry(data: DocumentData, at = new Date().toISOString()): StoredDoc {

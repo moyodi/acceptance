@@ -1,12 +1,18 @@
 import type { DocumentData } from '../lib/types';
 import { DOC_TYPE_META } from '../lib/defaults';
-import { formatKDate, periodEndISO, toParagraphs } from '../lib/format';
+import { formatKDate, formatPeriod, periodEndISO, toParagraphs } from '../lib/format';
 
 /**
  * 문서 모델 — 입력 데이터를 "페이지에서 쪼개지지 않는 단위(unit)" 목록으로 변환한다.
  * 화면 미리보기(HTML)와 PDF가 동일한 unit 목록과 동일한 레이아웃 정의를 사용하므로
  * 두 결과물의 줄바꿈·페이지 분할이 최대한 일치한다.
  */
+
+/** 문단 안의 글자 구간 — bold면 굵게 */
+export interface Segment {
+  text: string;
+  bold?: boolean;
+}
 
 export interface Heading {
   num: string;
@@ -21,7 +27,12 @@ interface Base {
 
 export type Unit =
   | (Base & { kind: 'title'; title: string; eyebrow: string })
-  | (Base & { kind: 'para'; text: string })
+  | (Base & {
+      kind: 'para';
+      text: string;
+      /** 입력값이 치환된 부분을 굵게 표시하기 위한 구간 — 없으면 text 그대로 */
+      segments?: Segment[];
+    })
   | (Base & { kind: 'kv'; rows: { label: string; value: string }[] })
   | (Base & {
       kind: 'item';
@@ -47,21 +58,41 @@ export type Unit =
       parties: { role: string; name: string; representative: string; stamp: string }[];
     });
 
-export function maintenanceText(d: DocumentData): string {
+/** 치환된 입력값 앞뒤 표시 (문단 분리 후 굵은 구간으로 바꾼다) */
+const MARK_OPEN = '\u0001';
+const MARK_CLOSE = '\u0002';
+
+export function maintenanceText(d: DocumentData, marked = false): string {
   const m = d.maintenance;
+  const wrap = (v: string) => (marked ? `${MARK_OPEN}${v}${MARK_CLOSE}` : v);
   return m.text
-    .replace(/\{기간\}/g, m.days ? String(m.days) : '___')
-    .replace(/\{기준\}/g, m.startBasis.trim() || '납품 완료일');
+    .replace(/\{기간\}/g, wrap(m.days ? formatPeriod(m.days, m.unit) : '___'))
+    .replace(/\{기준\}/g, wrap(m.startBasis.trim() || '납품 완료일'));
+}
+
+/** 표시 문자가 들어간 문단 → 일반 텍스트 + 굵은 구간 */
+function toSegments(marked: string): { text: string; segments: Segment[] } {
+  const segments: Segment[] = [];
+  marked.split(MARK_OPEN).forEach((chunk, i) => {
+    if (i === 0) {
+      if (chunk) segments.push({ text: chunk });
+      return;
+    }
+    const [bold, rest = ''] = chunk.split(MARK_CLOSE);
+    if (bold) segments.push({ text: bold, bold: true });
+    if (rest) segments.push({ text: rest });
+  });
+  return { text: segments.map((s) => s.text).join(''), segments };
 }
 
 export function maintenancePeriodLabel(d: DocumentData): string {
   const m = d.maintenance;
   if (!m.enabled || !m.days) return '';
   if (m.startDate) {
-    const end = periodEndISO(m.startDate, m.days);
-    return `${m.days}일 (${formatKDate(m.startDate)} ~ ${formatKDate(end)})`;
+    const end = periodEndISO(m.startDate, m.days, m.unit);
+    return `${formatPeriod(m.days, m.unit)} (${formatKDate(m.startDate)} ~ ${formatKDate(end)})`;
   }
-  return `${m.days}일 (${m.startBasis.trim() || '납품 완료일'}로부터)`;
+  return `${formatPeriod(m.days, m.unit)} (${m.startBasis.trim() || '납품 완료일'}로부터)`;
 }
 
 function partyLabel(name: string, rep: string): string {
@@ -141,7 +172,7 @@ export function buildUnits(d: DocumentData): Unit[] {
   if (d.maintenance.enabled) {
     section(
       '유지관리 및 운영',
-      toParagraphs(maintenanceText(d)).map((text, i) => ({ key: `maint-${i}`, kind: 'para' as const, text })),
+      toParagraphs(maintenanceText(d, true)).map((p, i) => ({ key: `maint-${i}`, kind: 'para' as const, ...toSegments(p) })),
     );
   }
 

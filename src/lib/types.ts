@@ -1,3 +1,5 @@
+export type PeriodUnit = 'day' | 'month';
+
 /** 문서 유형: 최종 납품 확인서 / 개발 완료 및 검수 확인서 */
 export type DocType = 'final' | 'review';
 
@@ -57,7 +59,10 @@ export interface DocumentData {
   maintenance: {
     enabled: boolean;
     /** 유지관리 기간 (일) */
+    /** 유지관리 기간 (숫자) — 단위는 unit */
     days: number | null;
+    /** 기간 단위: 일 / 개월 */
+    unit: PeriodUnit;
     /** 유지관리 시작 기준 (문구) — 예: 납품 완료일 */
     startBasis: string;
     /** 유지관리 시작일 (YYYY-MM-DD) — 입력 시 기간을 날짜로 계산해 표시 */

@@ -17,6 +17,8 @@ export interface Primitives {
   View: ComponentType<{ style?: DocStyle; children?: ReactNode }>;
   Text: ComponentType<{ style?: DocStyle; children?: ReactNode }>;
   Image: ComponentType<{ src: string; style?: DocStyle }>;
+  /** 문단 안의 인라인 구간 */
+  Span: ComponentType<{ style?: DocStyle; children?: ReactNode }>;
 }
 
 /** A4 및 여백 (mm) */
@@ -64,6 +66,7 @@ export const S = {
 
   // 본문
   para: { fontSize: '9.5pt', lineHeight: 1.75, color: C.body, paddingBottom: '2.2mm' },
+  strong: { fontWeight: 700, color: C.ink },
   empty: { fontSize: '9.5pt', lineHeight: 1.75, color: C.muted, paddingBottom: '2.2mm' },
 
   // 정보 표
@@ -147,7 +150,7 @@ const merge = (...styles: (DocStyle | false | undefined)[]): DocStyle => Object.
 
 /** unit 하나를 주어진 primitive(HTML 또는 PDF)로 렌더링 */
 export function renderUnit(u: Unit, P: Primitives): ReactNode {
-  const { View, Text, Image } = P;
+  const { View, Text, Image, Span } = P;
   const heading = u.heading ? (
     <View style={S.headingWrap}>
       <Text style={S.heading}>{`${u.heading.num}. ${u.heading.text}`}</Text>
@@ -167,7 +170,21 @@ export function renderUnit(u: Unit, P: Primitives): ReactNode {
       );
       break;
     case 'para':
-      body = <Text style={S.para}>{u.text}</Text>;
+      body = (
+        <Text style={S.para}>
+          {u.segments
+            ? u.segments.map((s, i) =>
+                s.bold ? (
+                  <Span key={i} style={S.strong}>
+                    {s.text}
+                  </Span>
+                ) : (
+                  s.text
+                ),
+              )
+            : u.text}
+        </Text>
+      );
       break;
     case 'empty':
       body = <Text style={S.empty}>{u.text}</Text>;

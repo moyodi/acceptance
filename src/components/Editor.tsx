@@ -213,14 +213,14 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
         {data.maintenance.enabled && (
           <div className="mt-4 flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field id="f-maint-days" label="유지관리 기간 (일)" required error={err('f-maint-days')}>
-                <div className="relative">
+              <Field id="f-maint-days" label="유지관리 기간" required error={err('f-maint-days')}>
+                <div className="flex gap-2">
                   <input
                     {...inputProps('f-maint-days')}
                     type="number"
                     min={1}
                     inputMode="numeric"
-                    className="input pr-10"
+                    className="input flex-1 min-w-0"
                     value={data.maintenance.days ?? ''}
                     onChange={(e) =>
                       edit((d) => {
@@ -229,10 +229,33 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
                       })
                     }
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-compact text-fg-tertiary pointer-events-none">일</span>
+                  <div role="radiogroup" aria-label="기간 단위" className="flex-none flex rounded-sm border border-line-strong overflow-hidden h-control">
+                    {(
+                      [
+                        { v: 'day', label: '일' },
+                        { v: 'month', label: '개월' },
+                      ] as const
+                    ).map((o) => {
+                      const on = data.maintenance.unit === o.v;
+                      return (
+                        <button
+                          key={o.v}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => edit((d) => void (d.maintenance.unit = o.v))}
+                          className={`px-3 text-compact font-semibold transition-colors ${
+                            on ? 'bg-bg-primary-subtle text-bg-primary-hover' : 'bg-bg-surface text-fg-tertiary hover:bg-bg-subtle'
+                          }`}
+                        >
+                          {o.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </Field>
-              <Field id="f-maint-basis" label="시작 기준" hint="문구의 {기준} 위치에 표시됩니다.">
+              <Field id="f-maint-basis" label="시작 기준" hint="문구의 {기준} 위치에 굵게 표시됩니다.">
                 <input
                   id="f-maint-basis"
                   className="input"
@@ -272,7 +295,7 @@ export function Editor({ data, edit, errors, showErrors, onDismissSample, onStar
                 문서 표기: <b className="text-fg-primary">{maintenancePeriodLabel(data)}</b>
               </p>
             )}
-            <Field id="f-maint-text" label="유지관리 문구" hint="{기간}, {기준} 은 위 입력값으로 자동 치환됩니다. 빈 줄로 문단을 구분합니다.">
+            <Field id="f-maint-text" label="유지관리 문구" hint="{기간}은 단위를 포함해(예: 90일, 3개월), {기준}은 시작 기준으로 자동 치환되며 문서에서 굵게 표시됩니다. 빈 줄로 문단을 구분합니다.">
               <AutoTextarea id="f-maint-text" value={data.maintenance.text} onChange={(e) => edit((d) => void (d.maintenance.text = e.target.value))} />
             </Field>
             <div className="-mt-2 flex justify-end">

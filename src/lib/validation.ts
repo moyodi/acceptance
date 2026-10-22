@@ -32,7 +32,7 @@ export function validate(d: DocumentData): ValidationError[] {
     errors.push({
       fieldId: 'f-maint-days',
       section: '유지관리 및 운영',
-      message: '유지관리 기간(1일 이상)을 입력하거나 유지관리 조항을 미적용으로 설정해 주세요.',
+      message: '유지관리 기간(1 이상)을 입력하거나 유지관리 조항을 미적용으로 설정해 주세요.',
     });
   }
   if (!d.documentDate) {

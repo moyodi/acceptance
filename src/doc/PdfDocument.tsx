@@ -31,6 +31,7 @@ const PdfPrimitives: Primitives = {
   View: ({ style, children }) => <View style={style as any}>{children}</View>,
   Text: ({ style, children }) => <Text style={style as any}>{children}</Text>,
   Image: ({ src, style }) => <Image src={src} style={style as any} />,
+  Span: ({ style, children }) => <Text style={style as any}>{children}</Text>,
 };
 
 const pageStyle: DocStyle = {
