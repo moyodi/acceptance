@@ -56,12 +56,18 @@ function migrateMaintenance(m: DocumentData['maintenance'], storedUnit: unknown)
   return { ...m, unit: 'day', text: m.text.replace(/\{기간\}일/g, '{기간}') };
 }
 
-/** 월드크레인 세트 초기 버전의 잘못된 세부 내용 정정 — 회원 직접 탈퇴 기능은 구현되지 않음 */
+/** 월드크레인 세트 이전 버전의 세부 내용 정정 — 직접 수정하지 않은(원문 그대로인) 경우에만 바꾼다 */
 function fixDetail(label: string, detail: string): string {
-  if (label === '회원정보 관리' && detail === '아이디·비밀번호 찾기, 회원정보 조회·수정, 비밀번호 변경, 회원 탈퇴') {
-    return '아이디·비밀번호 찾기, 회원정보 조회·수정, 비밀번호 변경';
-  }
-  return detail;
+  const fixes: Record<string, [from: string, to: string]> = {
+    '회원정보 관리': ['아이디·비밀번호 찾기, 회원정보 조회·수정, 비밀번호 변경, 회원 탈퇴', '아이디·비밀번호 찾기, 회원정보 조회·수정, 비밀번호 변경'],
+    // 협의에 따라 가격 표시는 소비자가만 노출
+    '상품 목록 화면': [
+      '상세페이지 없는 리스트형 카탈로그 — 상품 일련번호·이미지·상품명·가격·VAT 표기·소비자가·정품 여부 표시',
+      '상세페이지 없는 리스트형 카탈로그 — 상품 일련번호·이미지·상품명·소비자가·정품 여부 표시',
+    ],
+  };
+  const fix = fixes[label];
+  return fix && detail === fix[0] ? fix[1] : detail;
 }
 
 function newEntry(data: DocumentData, at = new Date().toISOString()): StoredDoc {
